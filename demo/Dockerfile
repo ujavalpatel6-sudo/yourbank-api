@@ -1,14 +1,30 @@
-# Use OpenJDK 17 as the base image
-FROM openjdk:17-jdk-slim
+# -------- Stage 1: Build the JAR --------
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 
-# Set working directory inside container
+# Set working directory inside the container
 WORKDIR /app
 
-# Copy the built JAR file into the container
-COPY target/yourbank-0.0.1-SNAPSHOT.jar app.jar
+# Copy pom.xml and download dependencies first (for caching)
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
 
-# Expose port 8080
+# Copy the rest of the source code
+COPY src ./src
+
+# Build the application
+RUN mvn clean package -DskipTests
+
+# -------- Stage 2: Run the JAR --------
+FROM openjdk:17-jdk-slim
+
+# Set working directory inside the container
+WORKDIR /app
+
+# Copy the built JAR from the previous stage
+COPY --from=build /app/target/*.jar app.jar
+
+# Expose port 8080 for the app
 EXPOSE 8080
 
-# Run the Spring Boot application
+# Run the Spring Boot app
 ENTRYPOINT ["java", "-jar", "app.jar"]
